@@ -1,0 +1,8 @@
+node_modules/
+managed/
+.env
+.env.*
+!.env.example
+.private-state/
+deployment.json
+*.log

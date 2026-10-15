@@ -1,0 +1,109 @@
+// SPDX-License-Identifier: Apache-2.0
+// Adapted from midnight-js, Copyright (C) 2025-2026 Midnight Foundation.
+// Ledger 8 adapter, based on midnight-js v4.1.1's wallet-factory.ts and
+// midnight-wallet-provider.ts. No seed generation, logging, or automatic funding.
+import {
+  createKeystore, DustWallet, HDWallet, InMemoryTransactionHistoryStorage,
+  mergeWalletEntries, NetworkId, PublicKey, Roles, ShieldedWallet,
+  UnshieldedWallet, WalletEntrySchema, WalletFacade,
+} from '@midnight-ntwrk/wallet-sdk';
+import {
+  DustSecretKey, LedgerParameters, unshieldedToken, ZswapSecretKeys,
+} from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import type { MidnightProvider, WalletProvider } from '@midnight-ntwrk/midnight-js-types';
+import { filter, firstValueFrom, timeout } from 'rxjs';
+
+export interface WalletOptions {
+  seedHex: string;
+  networkId: 'preprod' | 'preview';
+  indexerHttpUrl: string;
+  indexerWsUrl: string;
+  nodeWsUrl: string;
+  proofServerUrl: string;
+  timeoutMs?: number;
+}
+
+export async function buildWallet(options: WalletOptions) {
+  if (options.networkId !== 'preprod' && options.networkId !== 'preview') {
+    throw new Error('This example supports only preprod and preview.');
+  }
+  if (!/^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{128})$/.test(options.seedHex)) {
+    throw new Error('Wallet seed must be 32 or 64 bytes encoded as hexadecimal.');
+  }
+  const hd = HDWallet.fromSeed(Buffer.from(options.seedHex, 'hex'));
+  if (hd.type !== 'seedOk') throw new Error('Invalid wallet seed.');
+  const derive = (role: typeof Roles.Zswap | typeof Roles.NightExternal | typeof Roles.Dust) => {
+    const result = hd.hdWallet.selectAccount(0).selectRole(role).deriveKeyAt(0);
+    if (result.type === 'keyOutOfBounds') throw new Error('Wallet key derivation failed.');
+    return result.key;
+  };
+  const shieldedSeed = derive(Roles.Zswap);
+  const dustSeed = derive(Roles.Dust);
+  const networkId = options.networkId === 'preprod'
+    ? NetworkId.NetworkId.PreProd : NetworkId.NetworkId.Preview;
+  const keystore = createKeystore(derive(Roles.NightExternal), networkId);
+  const zswapSecretKeys = ZswapSecretKeys.fromSeed(shieldedSeed);
+  const dustSecretKey = DustSecretKey.fromSeed(dustSeed);
+  const configuration = {
+    networkId,
+    indexerClientConnection: {
+      indexerHttpUrl: options.indexerHttpUrl,
+      indexerWsUrl: options.indexerWsUrl,
+    },
+    relayURL: new URL(options.nodeWsUrl),
+    provingServerUrl: new URL(options.proofServerUrl),
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
+    costParameters: { feeBlocksMargin: 5 },
+  };
+  const wallet = await WalletFacade.init({
+    configuration,
+    shielded: config => ShieldedWallet(config).startWithSeed(shieldedSeed),
+    unshielded: config => UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(keystore)),
+    dust: config => DustWallet(config).startWithSeed(dustSeed, LedgerParameters.initialParameters().dust),
+  });
+  const sync = () => firstValueFrom(wallet.state().pipe(
+    filter(state => state.shielded.state.progress.isStrictlyComplete()
+      && state.unshielded.progress.isStrictlyComplete()
+      && state.dust.state.progress.isStrictlyComplete()),
+    timeout({ first: options.timeoutMs ?? 180_000 }),
+  ));
+  try {
+    await wallet.start(zswapSecretKeys, dustSecretKey);
+    await sync();
+  } catch (error) {
+    await wallet.stop().catch(() => {});
+    throw error;
+  }
+
+  const walletProvider: WalletProvider = {
+    getCoinPublicKey: () => zswapSecretKeys.coinPublicKey,
+    getEncryptionPublicKey: () => zswapSecretKeys.encryptionPublicKey,
+    balanceTx: async (tx, ttl = new Date(Date.now() + 60 * 60 * 1000)) => {
+      const recipe = await wallet.balanceUnboundTransaction(tx, {
+        shieldedSecretKeys: zswapSecretKeys, dustSecretKey,
+      }, { ttl });
+      const signed = await wallet.signRecipe(recipe, payload => keystore.signData(payload));
+      return wallet.finalizeRecipe(signed);
+    },
+  };
+  const midnightProvider: MidnightProvider = {
+    submitTx: tx => wallet.submitTransaction(tx),
+  };
+
+  return {
+    walletProvider,
+    midnightProvider,
+    address: keystore.getBech32Address().asString(),
+    coinPublicKey: zswapSecretKeys.coinPublicKey,
+    encryptionPublicKey: zswapSecretKeys.encryptionPublicKey,
+    sync,
+    balances: async () => {
+      const state = await sync();
+      return {
+        night: state.unshielded.balances[unshieldedToken().raw] ?? 0n,
+        dust: state.dust.balance(new Date()),
+      };
+    },
+    close: () => wallet.stop(),
+  };
+}
