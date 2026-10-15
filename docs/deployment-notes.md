@@ -13,7 +13,7 @@
 | Midnight.js | 4.1.1 |
 | Ledger / on-chain runtime | ledger-v8 8.1.0 / onchain-runtime-v3 3.0.0 |
 | Wallet SDK / facade | 1.1.0 / 4.0.1 |
-| Proof server | 8.0.3, matching the pinned SDK's preprod configuration |
+| Proof server | `midnightntwrk/proof-server:8.0.3` from public Docker Hub |
 
 Keep the lockfile and overrides: unconstrained wallet dependencies otherwise install a different Ledger 8 patch alongside the SDK's version.
 

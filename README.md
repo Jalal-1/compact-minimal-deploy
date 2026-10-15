@@ -49,7 +49,7 @@ Run this in a separate terminal and leave it running:
 
 ```sh
 docker run --rm -p 127.0.0.1:6300:6300 \
-  ghcr.io/midnight-ntwrk/proof-server:8.0.3 midnight-proof-server
+  midnightntwrk/proof-server:8.0.3 midnight-proof-server
 ```
 
 ## 4. Fund the wallet
