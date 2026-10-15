@@ -12,6 +12,7 @@ import {
 } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import type { MidnightProvider, WalletProvider } from '@midnight-ntwrk/midnight-js-types';
 import { filter, firstValueFrom, timeout } from 'rxjs';
+import { registerDust } from './dust.js';
 
 export interface WalletOptions {
   seedHex: string;
@@ -103,6 +104,7 @@ export async function buildWallet(options: WalletOptions) {
     coinPublicKey: zswapSecretKeys.coinPublicKey,
     encryptionPublicKey: zswapSecretKeys.encryptionPublicKey,
     sync,
+    registerDust: () => registerDust(wallet, keystore, sync),
     balances: async () => {
       const state = await sync();
       return {

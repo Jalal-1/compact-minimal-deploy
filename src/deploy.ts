@@ -55,7 +55,7 @@ async function main() {
   try {
     const balances = await wallet.balances();
     console.log('Fee-paying address:', wallet.address);
-    if (balances.dust <= 0n) throw new SetupError('The wallet needs spendable DUST before deployment.');
+    if (balances.dust <= 0n) throw new SetupError('The wallet needs DUST. Fund it at the faucet, then run npm run register-dust.');
 
     // 2. Owner authorisation is separate from CMA contract maintenance.
     console.log('2. Preparing the OZ constructor arguments...');

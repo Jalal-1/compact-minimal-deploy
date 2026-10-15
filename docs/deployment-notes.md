@@ -25,6 +25,14 @@ Running setup again preserves every nonempty setting, including custom endpoints
 
 For a manually supplied storage password, the SDK requires at least 16 characters and three of uppercase, lowercase, digits and symbols. Runs of four repeated or sequential characters are rejected.
 
+## DUST registration
+
+After using the faucet, run `npm run register-dust`. It restores the same wallet, waits for available NIGHT and selects only unregistered NIGHT coins. It repeatedly estimates the registration fee until the SDK's eligible input can cover it from the DUST attributable to its age. A first registration therefore needs no existing DUST balance.
+
+The SDK signs the registration with the wallet's unshielded key and sends the DUST to this wallet's DUST address. The command prints the transaction ID, submits once, checks successful execution in the wallet's indexed transaction history, and waits for a positive DUST balance. Existing registrations are preserved. A positive balance shows that generation is working; the deployment's actual fee can require more accumulation time.
+
+Funding, fee accumulation, submission, confirmation and DUST waits each time out after ten minutes. Wallet sync has a separate three-minute timeout. If submission or confirmation is uncertain, check the printed transaction ID before retrying. Run only one command using this wallet at a time. This command handles first registration, not redirecting existing DUST generation to a different wallet.
+
 ## Key handling
 
 There are three different roles here:
@@ -45,6 +53,7 @@ The full deployment result also contains `deployTxData.private.signingKey`; some
 - Disposable standard-provider signing-key write/read and absence of the plaintext key in database files.
 - Missing-configuration failure path, before any wallet connection or submission.
 - Wallet setup with a fresh or partially filled `.env`, repeated runs preserving keys, private file permissions, and matching address output.
+- Offline DUST registration tests: delayed funding and fee accumulation, NIGHT-only selection, confirmation, DUST accumulation, repeated runs, timeouts and submission failures. These use simulated wallet responses, not a live network.
 
 **No on-chain deployment or funded-wallet test has been performed.** Proof-server/network compatibility and finalization remain to be checked during the first controlled test deployment.
 
@@ -54,6 +63,7 @@ The full deployment result also contains `deployTxData.private.signingKey`; some
 - [SDK deployment](https://github.com/midnightntwrk/midnight-js/blob/v4.1.1/packages/contracts/src/deploy-contract.ts) and [post-success key storage](https://github.com/midnightntwrk/midnight-js/blob/v4.1.1/packages/contracts/src/submit-deploy-tx.ts).
 - [Wallet construction](https://github.com/midnightntwrk/midnight-js/blob/v4.1.1/testkit-js/testkit-js/src/wallet/wallet-factory.ts) and [wallet adapter](https://github.com/midnightntwrk/midnight-js/blob/v4.1.1/testkit-js/testkit-js/src/wallet/midnight-wallet-provider.ts). `src/wallet.ts` adapts Midnight Foundation's Apache-2.0 code; see [LICENSE-MIDNIGHT](../LICENSE-MIDNIGHT).
 - [Preprod endpoints](https://github.com/midnightntwrk/midnight-js/blob/v4.1.1/testkit-js/testkit-js/src/test-environment/test-environments/preprod-test-environment.ts), [proof-server version](https://github.com/midnightntwrk/midnight-js/blob/v4.1.1/testkit-js/env/preprod.env) and [container command](https://github.com/midnightntwrk/midnight-js/blob/v4.1.1/testkit-js/proof-server.yml).
+- [Funding and first DUST registration](https://docs.midnight.network/guides/acquire-tokens) and [DUST registration rules](https://docs.midnight.network/guides/manage-dust). The implementation uses the pinned facade 4.0.1 API; it polls `estimateRegistration` because that version does not have the newer `waitForGeneratedDust` helper.
 
 ## Alternative compiler command
 
