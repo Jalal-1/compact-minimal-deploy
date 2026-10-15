@@ -1,28 +1,14 @@
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { DustRegistrationError } from '../src/dust.js';
 import { buildWallet } from '../src/wallet.js';
-
-const required = (name: string) => {
-  const value = process.env[name];
-  if (!value) throw new DustRegistrationError(`Set ${name} in .env; run npm run setup first.`);
-  return value;
-};
+import { readWalletOptions, SetupError } from '../src/config.js';
+import { protectEndpointLogs } from '../src/logging.js';
 let step = 'configuration';
 
 async function main() {
-  const networkId = required('NETWORK_ID');
-  if (networkId !== 'preprod' && networkId !== 'preview') {
-    throw new DustRegistrationError('This example supports preprod or preview only.');
-  }
-  const options = {
-    networkId,
-    seedHex: required('WALLET_SEED'),
-    indexerHttpUrl: required('INDEXER_HTTP_URL'),
-    indexerWsUrl: required('INDEXER_WS_URL'),
-    nodeWsUrl: required('NODE_WS_URL'),
-    proofServerUrl: required('PROOF_SERVER_URL'),
-  } as const;
-  setNetworkId(networkId);
+  const options = readWalletOptions();
+  protectEndpointLogs([options.indexerHttpUrl, options.indexerWsUrl, options.nodeWsUrl]);
+  setNetworkId(options.networkId);
   step = 'wallet sync';
   console.log('Syncing the test wallet...');
   const wallet = await buildWallet(options);
@@ -39,7 +25,7 @@ async function main() {
 
 main().catch(error => {
   // SDK errors can contain private data. Print only our safe messages or a class name.
-  const detail = error instanceof DustRegistrationError
+  const detail = error instanceof DustRegistrationError || error instanceof SetupError
     ? error.message : error instanceof Error ? error.name : 'UnknownError';
   console.error(`Stopped during ${step}: ${detail}`);
   process.exitCode = 1;

@@ -12,10 +12,11 @@ import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config
 import { validatePassword } from '@midnight-ntwrk/midnight-js-utils';
 import * as Token from '../managed/token/contract/index.js';
 import { buildWallet } from './wallet.js';
+import { readWalletOptions, SetupError } from './config.js';
+import { protectEndpointLogs } from './logging.js';
 
 type Circuit = keyof Token.ProvableCircuits<undefined>;
 const localPath = (path: string) => fileURLToPath(new URL(path, new URL('../', import.meta.url)));
-class SetupError extends Error {}
 const required = (name: string) => {
   const value = process.env[name];
   if (!value) throw new SetupError(`Set ${name} in .env.`);
@@ -25,11 +26,9 @@ let step = 'configuration';
 
 async function main() {
   // 1. Read the test-network configuration and three separate secrets.
-  const networkId = required('NETWORK_ID');
-  if (networkId !== 'preprod' && networkId !== 'preview') {
-    throw new SetupError('This example supports preprod or preview only.');
-  }
-  const seedHex = required('WALLET_SEED');
+  const options = readWalletOptions();
+  const { networkId, indexerHttpUrl, indexerWsUrl, proofServerUrl } = options;
+  protectEndpointLogs([indexerHttpUrl, indexerWsUrl, options.nodeWsUrl]);
   const nonceHex = required('OWNER_NONCE');
   if (!/^[0-9a-fA-F]{64}$/.test(nonceHex)) throw new SetupError('OWNER_NONCE must be 32 bytes of hex.');
   const ownerNonce = Buffer.from(nonceHex, 'hex');
@@ -38,10 +37,6 @@ async function main() {
   const password = required('PRIVATE_STORAGE_PASSWORD');
   try { validatePassword(password); }
   catch { throw new SetupError('PRIVATE_STORAGE_PASSWORD does not meet the SDK strength policy; see README.'); }
-  const indexerHttpUrl = required('INDEXER_HTTP_URL');
-  const indexerWsUrl = required('INDEXER_WS_URL');
-  const nodeWsUrl = required('NODE_WS_URL');
-  const proofServerUrl = required('PROOF_SERVER_URL');
   setNetworkId(networkId);
   const assets = localPath('./managed/token');
   // A --skip-zk compile is insufficient for deployment: verifier keys are needed.
@@ -51,7 +46,7 @@ async function main() {
 
   step = 'wallet sync';
   console.log('1. Syncing the funded test wallet...');
-  const wallet = await buildWallet({ seedHex, networkId, indexerHttpUrl, indexerWsUrl, nodeWsUrl, proofServerUrl });
+  const wallet = await buildWallet(options);
   try {
     const balances = await wallet.balances();
     console.log('Fee-paying address:', wallet.address);

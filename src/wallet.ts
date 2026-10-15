@@ -13,16 +13,7 @@ import {
 import type { MidnightProvider, WalletProvider } from '@midnight-ntwrk/midnight-js-types';
 import { filter, firstValueFrom, timeout } from 'rxjs';
 import { registerDust } from './dust.js';
-
-export interface WalletOptions {
-  seedHex: string;
-  networkId: 'preprod' | 'preview';
-  indexerHttpUrl: string;
-  indexerWsUrl: string;
-  nodeWsUrl: string;
-  proofServerUrl: string;
-  timeoutMs?: number;
-}
+import { checkIndexer, SetupError, type WalletOptions } from './config.js';
 
 // Shared by the offline address command and the deployment wallet.
 export function deriveWalletKeys(seedHex: string, network: WalletOptions['networkId']) {
@@ -48,6 +39,7 @@ export function deriveWalletKeys(seedHex: string, network: WalletOptions['networ
 }
 
 export async function buildWallet(options: WalletOptions) {
+  await checkIndexer(options.indexerHttpUrl);
   const { shieldedSeed, dustSeed, networkId, keystore } = deriveWalletKeys(options.seedHex, options.networkId);
   const zswapSecretKeys = ZswapSecretKeys.fromSeed(shieldedSeed);
   const dustSecretKey = DustSecretKey.fromSeed(dustSeed);
@@ -62,12 +54,27 @@ export async function buildWallet(options: WalletOptions) {
     txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
     costParameters: { feeBlocksMargin: 5 },
   };
-  const wallet = await WalletFacade.init({
-    configuration,
-    shielded: config => ShieldedWallet(config).startWithSeed(shieldedSeed),
-    unshielded: config => UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(keystore)),
-    dust: config => DustWallet(config).startWithSeed(dustSeed, LedgerParameters.initialParameters().dust),
-  });
+  // Construct locally before opening the facade's RPC connections. If a
+  // constructor fails, close any wallets that were already created.
+  const parts: { stop(): Promise<void> }[] = [];
+  let wallet: WalletFacade;
+  try {
+    const dust = await DustWallet(configuration).startWithSecretKey(dustSecretKey, LedgerParameters.initialParameters().dust);
+    parts.push(dust);
+    const shielded = await ShieldedWallet(configuration).startWithSecretKeys(zswapSecretKeys);
+    parts.push(shielded);
+    const unshielded = await UnshieldedWallet(configuration).startWithPublicKey(PublicKey.fromKeyStore(keystore));
+    parts.push(unshielded);
+    wallet = await WalletFacade.init({
+      configuration, shielded: () => shielded, unshielded: () => unshielded, dust: () => dust,
+    });
+  } catch (error) {
+    await Promise.allSettled(parts.map(part => part.stop()));
+    const mismatch = error instanceof Error && error.message.startsWith('expected instance of ');
+    throw new SetupError(mismatch
+      ? 'Incompatible Ledger objects: run git pull and npm ci to install the single Ledger copy in the lockfile.'
+      : 'Wallet initialization failed. Run npm ci and check the endpoint configuration.');
+  }
   const sync = () => firstValueFrom(wallet.state().pipe(
     filter(state => state.shielded.state.progress.isStrictlyComplete()
       && state.unshielded.progress.isStrictlyComplete()
@@ -79,7 +86,9 @@ export async function buildWallet(options: WalletOptions) {
     await sync();
   } catch (error) {
     await wallet.stop().catch(() => {});
-    throw error;
+    throw new SetupError(error instanceof Error && error.name === 'TimeoutError'
+      ? 'Wallet sync timed out. Check the indexer WebSocket URL, provider access and network status, then retry.'
+      : 'Wallet sync failed. Check the indexer WebSocket URL and provider credentials.');
   }
 
   const walletProvider: WalletProvider = {

@@ -24,6 +24,14 @@ This creates a fresh wallet, saves its seed, owner nonce, maintenance key and st
 
 If you already have a `.env`, the command only fills empty or missing settings and keeps your existing wallet and keys. Keep this file private; it is needed to recover the wallet and operate the contract.
 
+Create a **Midnight Preprod** project at [Blockfrost](https://blockfrost.io), then enter its project ID in `.env`:
+
+```dotenv
+BLOCKFROST_PROJECT_ID=your_project_id
+```
+
+This provides access to the Preprod network. The scripts configure authentication for you.
+
 ## 3. Start the proof server
 
 Run this in a separate terminal and leave it running:
@@ -70,6 +78,7 @@ If the deployment fee exceeds your DUST balance, give DUST more time to accumula
 | `contracts/Token.compact` | OpenZeppelin token contract. |
 | `src/deploy.ts` | Deployment flow, numbered step by step. |
 | `src/wallet.ts` | Wallet and transaction submission. |
+| `src/config.ts` | Network settings and connection checks. |
 | `src/dust.ts` | DUST registration and confirmation. |
 | `scripts/setup.ts` | Creates the test wallet and fills missing configuration. |
 | `scripts/address.ts` | Prints the unshielded address without connecting to the network. |

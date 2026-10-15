@@ -5,6 +5,7 @@ import { parseEnv } from 'node:util';
 import { sampleSigningKey, signatureVerifyingKey } from '@midnight-ntwrk/compact-runtime';
 import { validatePassword } from '@midnight-ntwrk/midnight-js-utils';
 import { deriveWalletKeys } from '../src/wallet.js';
+import { endpoints } from '../src/config.js';
 
 class SetupError extends Error {}
 const envPath = fileURLToPath(new URL('../.env', import.meta.url));
@@ -40,8 +41,10 @@ async function main() {
     values[key] = value;
   };
   for (const [key, value] of Object.entries(parseEnv(template))) {
-    if (value) fill(key, network === 'preview' ? value.replaceAll('.preprod.', '.preview.') : value);
+    const defaults: Record<string, string> = endpoints[network];
+    if (value) fill(key, defaults[key] ?? value);
   }
+  if (!Object.hasOwn(values, 'BLOCKFROST_PROJECT_ID')) fill('BLOCKFROST_PROJECT_ID', '');
   if (!values.WALLET_SEED) fill('WALLET_SEED', randomBytes(32).toString('hex'));
   if (!values.OWNER_NONCE) fill('OWNER_NONCE', randomBytes(32).toString('hex'));
   if (!values.CMA_SIGNING_KEY) fill('CMA_SIGNING_KEY', sampleSigningKey());
@@ -69,6 +72,9 @@ async function main() {
   await chmod(envPath, 0o600);
   console.log('Test wallet ready. Secrets saved in .env; existing values preserved.');
   console.log('Unshielded address:', address);
+  if (network === 'preprod' && !values.BLOCKFROST_PROJECT_ID) {
+    console.log('Before connecting, set BLOCKFROST_PROJECT_ID in .env to your Midnight Preprod project ID from blockfrost.io.');
+  }
 }
 
 main().catch(error => {
