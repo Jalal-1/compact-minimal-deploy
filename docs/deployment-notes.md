@@ -17,6 +17,14 @@
 
 Keep the lockfile and overrides: unconstrained wallet dependencies otherwise install a different Ledger 8 patch alongside the SDK's version.
 
+## Wallet setup
+
+`npm run setup` works offline. It generates a random 32-byte wallet seed, an independent 32-byte owner nonce, a CMA signing key using the pinned runtime, and a storage password accepted by the SDK. It saves them in `.env` with owner-only permissions and prints only the public unshielded address.
+
+Running setup again preserves every nonempty setting, including custom endpoints and existing keys. Empty or missing settings are filled. The wallet is restored from the same master seed each time the deployment script runs; it uses account 0 and key index 0.
+
+For a manually supplied storage password, the SDK requires at least 16 characters and three of uppercase, lowercase, digits and symbols. Runs of four repeated or sequential characters are rejected.
+
 ## Key handling
 
 There are three different roles here:
@@ -36,6 +44,7 @@ The full deployment result also contains `deployTxData.private.signingKey`; some
 - Offline constructor execution: owner initialized, expected metadata, no minted entries.
 - Disposable standard-provider signing-key write/read and absence of the plaintext key in database files.
 - Missing-configuration failure path, before any wallet connection or submission.
+- Wallet setup with a fresh or partially filled `.env`, repeated runs preserving keys, private file permissions, and matching address output.
 
 **No on-chain deployment or funded-wallet test has been performed.** Proof-server/network compatibility and finalization remain to be checked during the first controlled test deployment.
 

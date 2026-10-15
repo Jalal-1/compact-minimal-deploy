@@ -9,6 +9,7 @@
   "scripts": {
     "compile": "compact compile +0.31.0 contracts/Token.compact managed/token",
     "check": "tsc --noEmit",
+    "setup": "node --import tsx scripts/setup.ts",
     "address": "node --env-file=.env --import tsx scripts/address.ts",
     "deploy": "node --env-file=.env --import tsx src/deploy.ts"
   },
