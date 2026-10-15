@@ -23,14 +23,15 @@ export interface WalletOptions {
   timeoutMs?: number;
 }
 
-export async function buildWallet(options: WalletOptions) {
-  if (options.networkId !== 'preprod' && options.networkId !== 'preview') {
+// Shared by the offline address command and the deployment wallet.
+export function deriveWalletKeys(seedHex: string, network: WalletOptions['networkId']) {
+  if (network !== 'preprod' && network !== 'preview') {
     throw new Error('This example supports only preprod and preview.');
   }
-  if (!/^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{128})$/.test(options.seedHex)) {
+  if (!/^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{128})$/.test(seedHex)) {
     throw new Error('Wallet seed must be 32 or 64 bytes encoded as hexadecimal.');
   }
-  const hd = HDWallet.fromSeed(Buffer.from(options.seedHex, 'hex'));
+  const hd = HDWallet.fromSeed(Buffer.from(seedHex, 'hex'));
   if (hd.type !== 'seedOk') throw new Error('Invalid wallet seed.');
   const derive = (role: typeof Roles.Zswap | typeof Roles.NightExternal | typeof Roles.Dust) => {
     const result = hd.hdWallet.selectAccount(0).selectRole(role).deriveKeyAt(0);
@@ -39,9 +40,14 @@ export async function buildWallet(options: WalletOptions) {
   };
   const shieldedSeed = derive(Roles.Zswap);
   const dustSeed = derive(Roles.Dust);
-  const networkId = options.networkId === 'preprod'
+  const networkId = network === 'preprod'
     ? NetworkId.NetworkId.PreProd : NetworkId.NetworkId.Preview;
   const keystore = createKeystore(derive(Roles.NightExternal), networkId);
+  return { shieldedSeed, dustSeed, networkId, keystore };
+}
+
+export async function buildWallet(options: WalletOptions) {
+  const { shieldedSeed, dustSeed, networkId, keystore } = deriveWalletKeys(options.seedHex, options.networkId);
   const zswapSecretKeys = ZswapSecretKeys.fromSeed(shieldedSeed);
   const dustSecretKey = DustSecretKey.fromSeed(dustSeed);
   const configuration = {

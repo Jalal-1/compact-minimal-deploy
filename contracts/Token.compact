@@ -13,7 +13,7 @@ pragma language_version >= 0.23.0;
 
 import CompactStandardLibrary;
 
-import "./node_modules/@openzeppelin/compact-contracts/token/presets/ZOwnableNativeShieldedToken" prefix ZOwnableNativeShieldedToken_;
+import "../node_modules/@openzeppelin/compact-contracts/token/presets/ZOwnableNativeShieldedToken" prefix ZOwnableNativeShieldedToken_;
 
 export { ZswapCoinPublicKey, ContractAddress, Either, Maybe, ShieldedCoinInfo };
 
@@ -31,7 +31,7 @@ import {
   _isInitialized,
   _totalMinted,
   _totalBurned,
-} from "./node_modules/@openzeppelin/compact-contracts/token/presets/ZOwnableNativeShieldedToken";
+} from "../node_modules/@openzeppelin/compact-contracts/token/presets/ZOwnableNativeShieldedToken";
 export {
   _ownerCommitment,
   _counter,

@@ -10,11 +10,11 @@ import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-pri
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { validatePassword } from '@midnight-ntwrk/midnight-js-utils';
-import * as Token from './managed/token/contract/index.js';
+import * as Token from '../managed/token/contract/index.js';
 import { buildWallet } from './wallet.js';
 
 type Circuit = keyof Token.ProvableCircuits<undefined>;
-const localPath = (path: string) => fileURLToPath(new URL(path, import.meta.url));
+const localPath = (path: string) => fileURLToPath(new URL(path, new URL('../', import.meta.url)));
 class SetupError extends Error {}
 const required = (name: string) => {
   const value = process.env[name];

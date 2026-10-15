@@ -7,9 +7,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "compile": "compact compile +0.31.0 Token.compact managed/token",
+    "compile": "compact compile +0.31.0 contracts/Token.compact managed/token",
     "check": "tsc --noEmit",
-    "deploy": "node --env-file=.env --import tsx deploy.ts"
+    "address": "node --env-file=.env --import tsx scripts/address.ts",
+    "deploy": "node --env-file=.env --import tsx src/deploy.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-js": "2.5.1",
